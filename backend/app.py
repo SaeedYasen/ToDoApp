@@ -1,24 +1,24 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-import json
-import os
+import json, os
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
-TASK_FILE = "tasks.json"
+TASKS_FILE = "tasks.json"
 
-# تحميل المهام من الملف
+# تحميل المهام
 def load_tasks():
-    if not os.path.exists(TASK_FILE):
-        return []
-    with open(TASK_FILE, "r") as f:
-        return json.load(f)
+    if os.path.exists(TASKS_FILE):
+        with open(TASKS_FILE, "r") as f:
+            return json.load(f)
+    return []
 
-# حفظ المهام في الملف
+# حفظ المهام
 def save_tasks(tasks):
-    with open(TASK_FILE, "w") as f:
-        json.dump(tasks, f)
+    with open(TASKS_FILE, "w") as f:
+        json.dump(tasks, f, indent=4)
 
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
@@ -26,24 +26,32 @@ def get_tasks():
 
 @app.route("/tasks", methods=["POST"])
 def add_task():
+    data = request.get_json()
     tasks = load_tasks()
-    data = request.json
-    tasks.append({"text": data["text"], "done": False})
+    new_task = {
+        "id": len(tasks) + 1,
+        "task": data["task"],
+        "done": False,
+        "created_at": datetime.now().isoformat()
+    }
+    tasks.append(new_task)
     save_tasks(tasks)
-    return jsonify({"message": "Task added"}), 201
+    return jsonify(new_task), 201
 
-@app.route("/tasks/<int:index>", methods=["PUT"])
-def update_task(index):
+@app.route("/tasks/<int:task_id>", methods=["PUT"])
+def update_task(task_id):
     tasks = load_tasks()
-    data = request.json
-    tasks[index]["done"] = data["done"]
-    save_tasks(tasks)
-    return jsonify({"message": "Task updated"})
+    for t in tasks:
+        if t["id"] == task_id:
+            t["done"] = not t["done"]
+            save_tasks(tasks)
+            return jsonify(t)
+    return jsonify({"error": "Task not found"}), 404
 
-@app.route("/tasks/<int:index>", methods=["DELETE"])
-def delete_task(index):
+@app.route("/tasks/<int:task_id>", methods=["DELETE"])
+def delete_task(task_id):
     tasks = load_tasks()
-    tasks.pop(index)
+    tasks = [t for t in tasks if t["id"] != task_id]
     save_tasks(tasks)
     return jsonify({"message": "Task deleted"})
 
